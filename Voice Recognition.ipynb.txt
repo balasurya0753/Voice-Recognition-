@@ -1,0 +1,208 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 75,
+   "id": "faf51b7a-693f-47e3-8a73-d1cd2b244bd5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "import librosa\n",
+    "import numpy as np\n",
+    "import pandas as pd\n",
+    "from sklearn.cluster import KMeans\n",
+    "from sklearn.preprocessing import StandardScaler\n",
+    "import matplotlib.pyplot as plt"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 76,
+   "id": "654854a9-b891-4b45-8921-f289d35cb8ce",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def extract_mfcc(file_path):\n",
+    "    y, sr = librosa.load(file_path, sr=None)\n",
+    "    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)\n",
+    "    return np.mean(mfccs.T, axis=0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 77,
+   "id": "5d0ce994-f771-403d-8282-f70145d2f887",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def prepare_dataset(folder_path):\n",
+    "    X = []\n",
+    "    filenames = []\n",
+    "    \n",
+    "    for file in os.listdir(folder_path):\n",
+    "        if file.endswith(\".mp3\"):\n",
+    "            file_path = os.path.join(folder_path, file)\n",
+    "            features = extract_mfcc(file_path)\n",
+    "            X.append(features)\n",
+    "            filenames.append(file)\n",
+    "    \n",
+    "    return np.array(X), filenames"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 78,
+   "id": "450de276-32e4-4393-aebd-995e4ecf4bfc",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def save_dataset_to_csv(features, filenames, output_file):\n",
+    "    df = pd.DataFrame(features)\n",
+    "    df['filename'] = filenames\n",
+    "    df.to_csv(output_file, index=False)\n",
+    "    print(f\"Dataset saved to {output_file}\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 79,
+   "id": "4cff6811-b975-419a-af70-f5b18fc08b8f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "folder_path = r\"C:\\Users\\arr64\\Downloads\\songs\"\n",
+    "output_file = r\"C:\\Users\\arr64\\Downloads\\voice_data.csv\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 80,
+   "id": "2708c1bb-1d89-48d3-a6ff-b6f8ab58ebd1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "X, filenames = prepare_dataset(folder_path)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 81,
+   "id": "d2abd165-d478-4397-bcc0-c34e72ffd21f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "scaler = StandardScaler()\n",
+    "X_scaled = scaler.fit_transform(X)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 82,
+   "id": "93fb7470-37a7-4c3d-8922-344bfe54c8ff",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "balanced = False \n",
+    "n_clusters = 2 \n",
+    "random_state = 10 \n",
+    "while not balanced:\n",
+    "    kmeans = KMeans(n_clusters=n_clusters, random_state=random_state) \n",
+    "    kmeans.fit(X_scaled)\n",
+    "    y_pred = kmeans.labels_ \n",
+    "    cluster_sizes = np.bincount(y_pred) \n",
+    "    if min(cluster_sizes) >= 10: \n",
+    "        balanced = True\n",
+    "    else: random_state += 1 "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 83,
+   "id": "29fea1ac-924b-49d3-a94e-ec0c582baba8",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Cluster 0: ['F8.mp3', 'M1.mp3', 'M10.mp3', 'M2.mp3', 'M4.mp3', 'M5.mp3', 'M6.mp3', 'M7.mp3', 'M8.mp3', 'M9.mp3']\n",
+      "Cluster 1: ['F1.mp3', 'F10.mp3', 'F2.mp3', 'F3.mp3', 'F4.mp3', 'F5.mp3', 'F6.mp3', 'F7.mp3', 'F9.mp3', 'M3.mp3']\n",
+      "Cluster 0 size: 10\n",
+      "Cluster 1 size: 10\n"
+     ]
+    }
+   ],
+   "source": [
+    "for cluster in range(n_clusters):\n",
+    "    cluster_files = [filenames[i] for i in range(len(y_pred))\n",
+    "                     if y_pred[i] == cluster] \n",
+    "    print(f\"Cluster {cluster}: {cluster_files}\")\n",
+    "\n",
+    "for cluster in range(n_clusters):\n",
+    "    print(f\"Cluster {cluster} size: {len(cluster_files)}\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 84,
+   "id": "fdfa3ce5-b7e4-401d-b83e-1a2922679b4e",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Percentage of Cluster 0: 50.00%\n",
+      "Percentage of Cluster 1: 50.00%\n"
+     ]
+    }
+   ],
+   "source": [
+    "total_files = len(y_pred)\n",
+    "percentages = (cluster_sizes / total_files) * 100\n",
+    "for cluster in range(n_clusters):\n",
+    "    print(f\"Percentage of Cluster {cluster}: {percentages[cluster]:.2f}%\") "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 85,
+   "id": "6623d662-17d5-4768-b768-52e0e24d5a24",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Dataset saved to C:\\Users\\arr64\\Downloads\\voice_data.csv\n"
+     ]
+    }
+   ],
+   "source": [
+    "save_dataset_to_csv(X_scaled, filenames, output_file) #SAVING THE CONVERTED AUDIO DATASET INTO CSV FILE.."
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.9"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
